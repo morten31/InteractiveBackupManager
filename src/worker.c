@@ -158,11 +158,7 @@ void run_backup_process(const char* source, const char* target)
                             // printf(" - Nowy katalog: %s\n", full_dest);
                             make_directory(full_dest);
 
-                            // wniesiony katalog
-                            if (event->mask & IN_MOVED_TO)
-                            {
-                                copy_recursive(full_src, full_dest, source, target);
-                            }
+                            copy_recursive(full_src, full_dest, source, target);
 
                             // watcher na nowy katalog
                             add_watch_recursive(full_src);

@@ -11,7 +11,7 @@
 #include "scheduler.h"
 #include "worker.h"
 
-pid_t start_backup_process(const char* source, const char* target)
+pid_t start_backup_process(const char* source, const char* target, BackupJob* inherited_jobs)
 {
     pid_t pid = fork();
 
@@ -21,6 +21,15 @@ pid_t start_backup_process(const char* source, const char* target)
     }
     else if (pid == 0)
     {
+        // Free inherited memory
+        BackupJob* current = inherited_jobs;
+        while (current != NULL)
+        {
+            BackupJob* temp = current;
+            current = current->next;
+            free(temp);
+        }
+
         // Proces dziecka
         run_backup_process(source, target);
     }
@@ -84,7 +93,7 @@ int job_add(BackupJob** job_list_head, const char* source, const char* target)
 
     if (realpath(source, absolute_source) == NULL)
     {
-        perror("Błąd: Nie można znaleźć katalogu źródłowego");
+        perror("Error: Could not find source directory");
         return -1;
     }
 
@@ -102,7 +111,7 @@ int job_add(BackupJob** job_list_head, const char* source, const char* target)
         }
         else
         {
-            perror("Błąd ścieżki docelowej");
+            perror("Error: Could not find target directory");
             return -1;
         }
     }
@@ -110,34 +119,34 @@ int job_add(BackupJob** job_list_head, const char* source, const char* target)
     {
         if (!is_directory_empty(absolute_target))
         {
-            fprintf(stderr, "Błąd: Katalog docelowy '%s' istnieje i nie jest pusty!\n", absolute_target);
+            fprintf(stderr, "Error: target directory '%s' exists and is not empty!\n", absolute_target);
             return -1;
         }
     }
 
     if (is_subpath(absolute_source, absolute_target))
     {
-        fprintf(stderr, "Błąd: ścieżka docelowa wewnątrz ścieżki źródłowej\n");
+        fprintf(stderr, "Error: target path within the source path\n");
         return -1;
     }
 
     if (job_exists(*job_list_head, absolute_source, absolute_target))
     {
-        fprintf(stderr, "Błąd: kopia już istnieje (%s -> %s)\n", absolute_source, absolute_target);
+        fprintf(stderr, "Error: backup already exists (%s -> %s)\n", absolute_source, absolute_target);
         return -1;
     }
 
-    pid_t new_pid = start_backup_process(absolute_source, absolute_target);
+    pid_t new_pid = start_backup_process(absolute_source, absolute_target, *job_list_head);
     if (new_pid < 0)
     {
-        fprintf(stderr, "Błąd: nie udało się utworzyć procesu.\n");
+        fprintf(stderr, "Error: could not create new process.\n");
         return -1;
     }
 
     BackupJob* job_node = malloc(sizeof(BackupJob));
     if (job_node == NULL)
     {
-        perror("Błąd alokacji pamięci");
+        perror("Error: malloc");
         return -1;
     }
 
@@ -147,7 +156,7 @@ int job_add(BackupJob** job_list_head, const char* source, const char* target)
     job_node->next = *job_list_head;
     *job_list_head = job_node;
 
-    printf("Rozpoczęto backup [PID: %d]\n   Z:  %s\n   Do: %s\n", new_pid, absolute_source, absolute_target);
+    printf("Initiated backup [PID: %d]\n   From:  %s\n   To: %s\n", new_pid, absolute_source, absolute_target);
     return 0;
 }
 
@@ -200,19 +209,19 @@ void job_print_all(BackupJob* job_list_head)
 {
     if (job_list_head == NULL)
     {
-        printf("Lista kopii  jest pusta\n");
+        printf("Backup list is empty\n");
         return;
     }
 
-    printf("--- Aktywne kopie zapasowe ---\n");
+    printf("--- Active backups ---\n");
     BackupJob* current_job = job_list_head;
     int counter = 1;
 
     while (current_job != NULL)
     {
         printf("%d. [PID: %d]\n", counter++, current_job->process_id);
-        printf("    Źródło: %s\n", current_job->source_path);
-        printf("    Cel:    %s\n", current_job->target_path);
+        printf("    Source: %s\n", current_job->source_path);
+        printf("    Target: %s\n", current_job->target_path);
         current_job = current_job->next;
     }
     printf("------------------------------\n");
@@ -226,15 +235,12 @@ void job_end_all(BackupJob* head)
         BackupJob* temp = current;
         current = current->next;
 
-        // 1. Wyślij sygnał zakończenia
-        printf("Zatrzymywanie procesu %d (%s)...\n", temp->process_id, temp->source_path);
+        printf("Finishing process %d (%s)...\n", temp->process_id, temp->source_path);
         kill(temp->process_id, SIGTERM);
 
-        // 2. Czekaj na zakończenie procesu (zapobiega Zombie)
         int status;
         waitpid(temp->process_id, &status, WNOHANG);
 
-        // 3. Zwolnij pamięć
         free(temp);
     }
 }

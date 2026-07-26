@@ -64,14 +64,14 @@ int copy_regular_file(const char* src_path, const char* dest_path)
     // Otwarcie src
     if ((src_fd = TEMP_FAILURE_RETRY(open(src_path, O_RDONLY))) < 0)
     {
-        perror("Błąd otwarcia pliku źródłowego");
+        perror("Source file open error");
         return -1;
     }
 
     struct stat st;
     if (TEMP_FAILURE_RETRY(fstat(src_fd, &st)) < 0)
     {
-        perror("Błąd fstat");
+        perror("fstat error");
         TEMP_FAILURE_RETRY(close(src_fd));
         return -1;
     }
@@ -79,7 +79,7 @@ int copy_regular_file(const char* src_path, const char* dest_path)
     // Otwarcie dest
     if ((dest_fd = TEMP_FAILURE_RETRY(open(dest_path, O_WRONLY | O_CREAT | O_TRUNC, 0600))) < 0)
     {
-        perror("Błąd otwarcia pliku docelowego");
+        perror("Target file open error");
         TEMP_FAILURE_RETRY(close(src_fd));
         return -1;
     }
@@ -87,7 +87,7 @@ int copy_regular_file(const char* src_path, const char* dest_path)
     buffer = malloc(COPY_BUFFER_SIZE);
     if (buffer == NULL)
     {
-        perror("Błąd malloc");
+        perror("malloc error");
         TEMP_FAILURE_RETRY(close(src_fd));
         TEMP_FAILURE_RETRY(close(dest_fd));
         return -1;
@@ -100,7 +100,7 @@ int copy_regular_file(const char* src_path, const char* dest_path)
 
         if (bytes_read < 0)
         {
-            perror("Błąd odczytu");
+            perror("Read error");
             status = -1;
             break;
         }
@@ -113,7 +113,7 @@ int copy_regular_file(const char* src_path, const char* dest_path)
         ssize_t bytes_written = bulk_write(dest_fd, buffer, bytes_read);
         if (bytes_written < 0 || (size_t)bytes_written != (size_t)bytes_read)
         {
-            perror("Błąd zapisu");
+            perror("Write error");
             status = -1;
             break;
         }
@@ -123,14 +123,14 @@ int copy_regular_file(const char* src_path, const char* dest_path)
     if (status == 0)
     {
         if (TEMP_FAILURE_RETRY(fchmod(dest_fd, st.st_mode)) < 0)
-            perror("Nie udało się ustawić uprawnień");
+            perror("Could not set permissions");
 
         struct timespec times[2];
         times[0] = st.st_atim;  // czas dostępu
         times[1] = st.st_mtim;  // czas modyfikacji
 
         if (TEMP_FAILURE_RETRY(futimens(dest_fd, times)) < 0)
-            perror("Nie udało się ustawić czasu modyfikacji");
+            perror("Could not set modification time");
     }
 
     free(buffer);
@@ -217,7 +217,7 @@ int copy_symlink(const char* src_path, const char* dest_path, const char* root_s
 
             if (needed >= PATH_MAX)
             {
-                fprintf(stderr, "Błąd: Ścieżka zbyt długa\n");
+                fprintf(stderr, "Error: path too long\n");
                 return -1;
             }
         }
@@ -269,7 +269,7 @@ int remove_any_path(const char* path)
 
             if (needed < 0 || needed >= PATH_MAX)
             {
-                fprintf(stderr, "Ścieżka zbyt długa: %s/%s\n", path, entry->d_name);
+                fprintf(stderr, "Path too long: %s/%s\n", path, entry->d_name);
                 ret = -1;
                 break;
             }

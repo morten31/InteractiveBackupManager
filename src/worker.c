@@ -11,10 +11,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "file_manager.h"
 #include "watcher.h"
 #include "worker.h"
+
+#include <inttypes.h>
 
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define BUFFER_LEN (1024 * (EVENT_SIZE + 16))
@@ -81,14 +84,33 @@ void run_backup_process(const char* source, const char* target)
         exit(EXIT_FAILURE);
     }
 
+
+    #ifdef PERF_METRICS
+        struct timespec sync_start, sync_end;
+        clock_gettime(CLOCK_MONOTONIC, &sync_start);
+    #endif
+
     // Wstępne dodanie watcherów
     add_watch_recursive(source);
 
+    int sync_status;
     // Wstępna synchronizacja
-    if (copy_recursive(source, target, source, target) < 0)
+    if ((sync_status = copy_recursive(source, target, source, target)) < 0)
     {
-        fprintf(stderr, "Wstępna kopia zakończona z błędami.\n");
+        fprintf(stderr, "Initial copy finished with errors.\n");
     }
+
+    #ifdef PERF_METRICS
+        clock_gettime(CLOCK_MONOTONIC, &sync_end);
+        double elapsed_ms = (sync_end.tv_sec - sync_start.tv_sec) * 1000.0 +
+                            (sync_end.tv_nsec - sync_start.tv_nsec) / 1000000.0;
+
+        if (sync_status < 0) {
+            fprintf(stderr, "[METRICS] Initial copy finished with errors (%.2f ms).\n", elapsed_ms);
+        } else {
+            fprintf(stderr, "[METRICS] Initial copy finished successfully in %.2f ms.\n", elapsed_ms);
+        }
+    #endif
 
     char buffer[BUFFER_LEN];
     while (keep_monitoring)
@@ -188,7 +210,7 @@ void run_backup_process(const char* source, const char* target)
         }
     }
 
-    printf("[PID: %d] Kończenie pracy...\n", getpid());
+    printf("[PID: %d] Finishing...\n", getpid());
     close(inotify_fd);
     watchlist_free_all(watch_list);
     exit(EXIT_SUCCESS);

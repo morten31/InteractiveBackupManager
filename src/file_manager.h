@@ -5,9 +5,9 @@
 #include <unistd.h>
 
 // Rozmiar bufora kopiowania
-#define COPY_BUFFER_SIZE 8192
+#define COPY_BUFFER_SIZE 131072 //128KB
 
-// Funkcje z wykładu
+// Read & write functions
 ssize_t bulk_read(int fd, char* buf, size_t count);
 ssize_t bulk_write(int fd, char* buf, size_t count);
 

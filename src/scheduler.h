@@ -12,8 +12,6 @@ typedef struct BackupJob
     struct BackupJob* next;
 } BackupJob;
 
-// Słownik
-
 // Dodaje nowe zadanie
 int job_add(BackupJob** job_list_head, const char* source, const char* target);
 
